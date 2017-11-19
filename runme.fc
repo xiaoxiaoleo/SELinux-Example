@@ -1,0 +1,4 @@
+/app/runme		--	gen_context(system_u:object_r:runme_exec_t,s-1)
+/output(/.*)?       		gen_context(system_u:object_r:runme_output_t,s-1)
+/only_read_dir(/.*)?       		gen_context(system_u:object_r:runme_only_read_dirdir_t,s-1)
+/app(/.*)?       		gen_context(system_u:object_r:runme_appdir_t,s-1)

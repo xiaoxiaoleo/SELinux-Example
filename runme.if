@@ -1,0 +1,51 @@
+
+## <summary>policy for runme</summary>
+
+########################################
+## <summary>
+##	Execute runme_exec_t in the runme domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`runme_domtrans',`
+	gen_require(`
+		type runme_t, runme_exec_t;
+#		type unconfined_r, runme_exec_t;
+
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, runme_exec_t, runme_t)
+')
+
+######################################
+## <summary>
+##	Execute runme in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`runme_exec',`
+	gen_require(`
+		type runme_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, runme_exec_t)
+')
+
+
+#interface(`zosremote_run',`
+#	gen_require(`
+#        	attribute_role zos_remote_roles;
+#	')
+#	zosremote_domtrans($1)
+#	roleattribute $2 zos_remote_roles;
+#')

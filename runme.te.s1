@@ -1,0 +1,169 @@
+policy_module(runme, 1.0.0)
+
+
+#####################################
+# Common groupings of permissions.
+#
+define(`x_file_perms', `{ getattr execute execute_no_trans }')
+define(`r_file_perms', `{ getattr open read ioctl lock }')
+define(`w_file_perms', `{ open append write }')
+define(`c_file_perms', `{ create }')
+
+define(`rx_file_perms', `{ r_file_perms x_file_perms }')
+define(`ra_file_perms', `{ r_file_perms append }')
+define(`rw_file_perms', `{ r_file_perms w_file_perms }')
+define(`rwc_file_perms', `{ r_file_perms w_file_perms c_file_perms }')
+define(`rwx_file_perms', `{ rw_file_perms x_file_perms }')
+define(`link_file_perms', `{ getattr link unlink rename }')
+define(`create_file_perms', `{ create setattr rw_file_perms link_file_perms }')
+
+define(`r_dir_perms', `{ open getattr read search ioctl }')
+define(`w_dir_perms', `{ open search write add_name remove_name }')
+define(`ra_dir_perms', `{ r_dir_perms add_name write }')
+define(`rw_dir_perms', `{ r_dir_perms w_dir_perms }')
+define(`create_dir_perms', `{ create reparent rmdir setattr rw_dir_perms link_file_perms }')
+
+define(`c_dir_perms', `{ create }')
+define(`rwc_dir_perms', `{ r_dir_perms w_dir_perms c_dir_perms }')
+
+
+#
+# Specified domain transition patterns
+#
+define(`domain_transition_pattern',`
+	allow $1 $2:file { getattr open read execute };
+	allow $1 $3:process transition;
+	dontaudit $1 $3:process { noatsecure siginh rlimitinh };
+')
+
+# compatibility:
+define(`domain_trans',`domain_transition_pattern($*)')
+
+define(`spec_domtrans_pattern',`
+	allow $1 self:process setexec;
+	domain_transition_pattern($1,$2,$3)
+
+	allow $3 $1:fd use;
+	allow $3 $1:fifo_file rw_fifo_file_perms;
+	allow $3 $1:process sigchld;
+')
+
+#
+# Automatic domain transition patterns
+#
+define(`domain_auto_transition_pattern',`
+	domain_transition_pattern($1,$2,$3)
+	type_transition $1 $2:process $3;
+')
+
+# compatibility:
+define(`domain_auto_trans',`domain_auto_transition_pattern($*)')
+
+define(`domtrans_pattern',`
+	domain_auto_transition_pattern($1,$2,$3)
+
+	allow $3 $1:fd use;
+	allow $3 $1:fifo_file rw_fifo_file_perms;
+	allow $3 $1:process sigchld;
+')
+
+#
+# Dynamic transition pattern
+#
+define(`dyntrans_pattern',`
+	allow $1 self:process setcurrent;
+	allow $1 $2:process dyntransition;
+	allow $2 $1:process sigchld;
+')
+
+#
+# Other process permissions
+#
+define(`ps_process_pattern',`
+	allow $1 $2:dir list_dir_perms;
+	allow $1 $2:file read_file_perms;
+	allow $1 $2:lnk_file read_lnk_file_perms;
+	allow $1 $2:process getattr;
+')
+
+
+# https://matt.bionicmessage.net/selinux-policy-macros.html
+#
+#
+########################################
+#
+# Declarations
+#
+
+require {
+  role guest_r;
+  type guest_t;
+  type user_tty_device_t;
+  type node_t;
+  type sysctl_net_t;
+  type dosfs_t;
+}
+
+
+
+type runme_t;
+#type unconfined_t;
+type runme_exec_t;
+application_domain(runme_t, runme_exec_t)
+
+
+## Role permits
+role guest_r types runme_t;
+
+domain_auto_transition_pattern(guest_t,runme_exec_t, runme_t)
+# temporary files in /only_read_dir/dat
+
+# signed output files in /output
+type runme_output_t;
+files_type(runme_output_t);
+
+type runme_only_read_dirdir_t;
+files_type(runme_only_read_dirdir_t);
+
+type runme_appdir_t;
+files_type(runme_appdir_t);
+########################################
+#
+# runme local policy
+#
+allow runme_t self:fifo_file rw_fifo_file_perms;
+allow runme_t self:unix_stream_socket create_stream_socket_perms;
+
+allow runme_t self:tcp_socket { create setopt bind };
+allow runme_t user_tty_device_t:chr_file { read write ioctl };
+allow runme_t node_t:tcp_socket node_bind;
+allow runme_t sysctl_net_t:dir rw_dir_perms;
+allow runme_t sysctl_net_t:file r_file_perms;
+
+allow runme_t runme_output_t : dir rw_dir_perms;
+allow runme_t runme_output_t : file rwc_file_perms;
+
+allow runme_t runme_only_read_dirdir_t : dir rw_dir_perms;
+allow runme_t runme_only_read_dirdir_t : file r_file_perms;
+
+allow runme_t runme_appdir_t : dir r_dir_perms;
+allow runme_t runme_appdir_t : file r_file_perms;
+
+allow guest_t runme_appdir_t : dir r_dir_perms;
+allow guest_t runme_appdir_t : file x_file_perms;
+
+
+allow runme_t dosfs_t : dir rwc_dir_perms;
+allow runme_t dosfs_t : file rwc_file_perms;
+
+
+#domain_use_interactive_fds(runme_t)
+
+#files_read_etc_files(runme_t)
+
+#miscfiles_read_localization(runme_t)
+
+## Access vectors
+allow runme_t guest_t:process sigchld;
+
+userdom_use_inherited_user_ptys(runme_t);
